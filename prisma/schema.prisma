@@ -1,0 +1,237 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model TrashBin {
+  trashbinid        String    @id @db.VarChar(50)
+  name              String    @db.VarChar(255)
+  location          String    @db.VarChar(255)
+  area              String?   @db.VarChar(100)
+  floor             String?   @db.VarChar(50)
+  capacity_liters   Float?
+  installation_date DateTime? @db.Date
+  status            String?   @default("active") @db.VarChar(20)
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  device            Device[]
+
+  @@map("trashbin")
+}
+
+model Device {
+  deviceid              String             @id @db.VarChar(50)
+  trashbinid            String             @db.VarChar(50)
+  category              String             @db.VarChar(50)
+  installation_date     DateTime?          @db.Date
+  last_maintenance_date DateTime?          @db.Date
+  status                String?            @default("active") @db.VarChar(20)
+  created_at            DateTime?          @default(now()) @db.Timestamp(6)
+  alertlog              AlertLog[]
+  binstatus             BinStatus[]
+  binstatushistory      BinStatusHistory[]
+  dailyanalytics        DailyAnalytics[]
+  trashbin              TrashBin           @relation(fields: [trashbinid], references: [trashbinid], onDelete: Cascade, onUpdate: NoAction)
+  devicehealth          DeviceHealth[]
+  sensor                Sensor[]
+
+  @@map("device")
+}
+
+model Sensor {
+  sensorid             String       @id @db.VarChar(50)
+  deviceid             String       @db.VarChar(50)
+  sensor_type          String       @db.VarChar(50)
+  sensor_position      String?      @db.VarChar(10)
+  model_number         String?      @db.VarChar(100)
+  calibration_factor   Float?       @default(1.0)
+  last_calibrated_date DateTime?    @db.Date
+  status               String?      @default("active") @db.VarChar(20)
+  created_at           DateTime?    @default(now()) @db.Timestamp(6)
+  alertlog             AlertLog[]
+  device               Device       @relation(fields: [deviceid], references: [deviceid], onDelete: Cascade, onUpdate: NoAction)
+  volumedata           VolumeData[]
+  weightdata           WeightData[]
+
+  @@map("sensor")
+}
+
+model WeightData {
+  weightdataid String   @id @db.VarChar(50)
+  sensorid     String   @db.VarChar(50)
+  weight_kg    Float
+  raw_reading  Float?
+  timestamp    DateTime @default(now()) @db.Timestamp(6)
+  sensor       Sensor   @relation(fields: [sensorid], references: [sensorid], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sensorid], map: "idx_weight_sensor")
+  @@index([timestamp], map: "idx_weight_timestamp")
+  @@index([sensorid, timestamp], map: "idx_weight_sensor_time")
+  @@map("weightdata")
+}
+
+model VolumeData {
+  volumedataid    String   @id @db.VarChar(50)
+  sensorid        String   @db.VarChar(50)
+  distance_cm     Float
+  fill_percentage Float
+  raw_reading     Float?
+  timestamp       DateTime @default(now()) @db.Timestamp(6)
+  sensor          Sensor   @relation(fields: [sensorid], references: [sensorid], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sensorid], map: "idx_volume_sensor")
+  @@index([timestamp], map: "idx_volume_timestamp")
+  @@index([sensorid, timestamp], map: "idx_volume_sensor_time")
+  @@map("volumedata")
+}
+
+model BinStatus {
+  binstatusid               String   @id @db.VarChar(50)
+  deviceid                  String   @db.VarChar(50)
+  total_weight_kg           Float?
+  average_volume_percentage Float?
+  status                    String   @db.VarChar(20)
+  condition                 String?  @db.VarChar(20)
+  last_updated              DateTime @default(now()) @db.Timestamp(6)
+  calculation_method        String?  @default("average") @db.VarChar(20)
+  sensor_contributions      Json?
+  device                    Device   @relation(fields: [deviceid], references: [deviceid], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([deviceid], map: "idx_binstatus_device")
+  @@index([last_updated], map: "idx_binstatus_updated")
+  @@index([status], map: "idx_binstatus_status")
+  @@map("binstatus")
+}
+
+model BinStatusHistory {
+  historyid                 String   @id @db.VarChar(50)
+  deviceid                  String   @db.VarChar(50)
+  total_weight_kg           Float?
+  average_volume_percentage Float?
+  status                    String   @db.VarChar(20)
+  condition                 String?  @db.VarChar(20)
+  recorded_at               DateTime @default(now()) @db.Timestamp(6)
+  trigger_reason            String?  @db.VarChar(50)
+  device                    Device   @relation(fields: [deviceid], references: [deviceid], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([deviceid], map: "idx_history_device")
+  @@index([recorded_at], map: "idx_history_time")
+  @@index([deviceid, recorded_at], map: "idx_history_device_time")
+  @@map("binstatushistory")
+}
+
+model DeviceHealth {
+  healthid           String   @id @db.VarChar(50)
+  deviceid           String   @db.VarChar(50)
+  battery_percentage Float?
+  error_count_24h    Int?     @default(0)
+  error_details      Json?
+  timestamp          DateTime @default(now()) @db.Timestamp(6)
+  device             Device   @relation(fields: [deviceid], references: [deviceid], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([deviceid], map: "idx_health_device")
+  @@index([timestamp], map: "idx_health_timestamp")
+  @@index([battery_percentage], map: "idx_health_battery")
+  @@map("devicehealth")
+}
+
+model DailyAnalytics {
+  analyticsid          String    @id @db.VarChar(50)
+  deviceid             String    @db.VarChar(50)
+  analysis_date        DateTime  @db.Date
+  avg_weight           Float?
+  max_weight           Float?
+  avg_volume           Float?
+  max_volume           Float?
+  collection_frequency Int?
+  waste_density        Float?
+  hourly_patterns      Json?
+  created_at           DateTime? @default(now()) @db.Timestamp(6)
+  device               Device    @relation(fields: [deviceid], references: [deviceid], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([deviceid, analysis_date])
+  @@index([deviceid, analysis_date], map: "idx_analytics_device_date")
+  @@index([deviceid], map: "idx_analytics_device")
+  @@index([analysis_date], map: "idx_analytics_date")
+  @@map("dailyanalytics")
+}
+
+model AlertLog {
+  alertid          String    @id @db.VarChar(50)
+  deviceid         String?   @db.VarChar(50)
+  sensorid         String?   @db.VarChar(50)
+  alert_type       String    @db.VarChar(50)
+  message          String
+  alert_data       Json?
+  triggered_at     DateTime  @default(now()) @db.Timestamp(6)
+  resolved_at      DateTime? @db.Timestamp(6)
+  resolution_notes String?
+  device           Device?   @relation(fields: [deviceid], references: [deviceid], onDelete: Cascade, onUpdate: NoAction)
+  sensor           Sensor?   @relation(fields: [sensorid], references: [sensorid], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([deviceid], map: "idx_alert_device")
+  @@index([alert_type], map: "idx_alert_type")
+  @@index([triggered_at], map: "idx_alert_triggered")
+  @@map("alertlog")
+}
+
+model User {
+  userid        String        @id @db.VarChar(50)
+  username      String        @unique @db.VarChar(100)
+  password_hash String        @db.VarChar(255)
+  email         String?       @unique @db.VarChar(255)
+  role          String        @db.VarChar(20)
+  created_at    DateTime?     @default(now()) @db.Timestamp(6)
+  last_login    DateTime?     @db.Timestamp(6)
+  status        String?       @default("active") @db.VarChar(20)
+  usersession   UserSession[]
+
+  @@index([username], map: "idx_user_username")
+  @@index([email], map: "idx_user_email")
+  @@index([role], map: "idx_user_role")
+  @@map("User")
+}
+
+model UserSession {
+  sessionid     String   @id @db.VarChar(50)
+  userid        String   @db.VarChar(50)
+  login_time    DateTime @default(now()) @db.Timestamp(6)
+  last_activity DateTime @default(now()) @db.Timestamp(6)
+  ip_address    String?  @db.VarChar(45)
+  user_agent    String?
+  status        String?  @default("active") @db.VarChar(20)
+  User          User     @relation(fields: [userid], references: [userid], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userid], map: "idx_session_user")
+  @@index([login_time], map: "idx_session_login")
+  @@index([status], map: "idx_session_status")
+  @@map("usersession")
+}
+
+model SensorType {
+  typeid           String  @id @db.VarChar(50)
+  type_name        String  @unique @db.VarChar(100)
+  description      String?
+  default_settings Json?
+  validation_rules Json?
+  min_value        Float?
+  max_value        Float?
+  unit             String? @db.VarChar(10)
+
+  @@map("sensortype")
+}
+
+model WasteCategory {
+  categoryid       String  @id @db.VarChar(50)
+  category_name    String  @unique @db.VarChar(100)
+  description      String?
+  color_code       String? @db.VarChar(7)
+  processing_rules Json?
+  density_factor   Float?  @default(1.0)
+
+  @@map("wastecategory")
+}

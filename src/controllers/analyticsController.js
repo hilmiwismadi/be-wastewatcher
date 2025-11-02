@@ -58,6 +58,52 @@ class AnalyticsController {
     }
   }
 
+  // Get 5-minute interval data (for hourly view)
+  static async getFiveMinuteIntervalData(req, res) {
+    try {
+      const { deviceId, category, startDate, endDate } = req.query;
+      const data = await AnalyticsModel.getFiveMinuteIntervalData(deviceId, category, startDate, endDate);
+
+      res.json({
+        success: true,
+        data: data,
+        count: data.length,
+        interval: '5 minutes',
+        filters: { deviceId, category, startDate, endDate }
+      });
+    } catch (error) {
+      console.error('Error fetching 5-minute interval data:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch 5-minute interval data',
+        message: error.message
+      });
+    }
+  }
+
+  // Get hourly interval data (for daily view)
+  static async getHourlyIntervalData(req, res) {
+    try {
+      const { deviceId, category, startDate, endDate } = req.query;
+      const data = await AnalyticsModel.getHourlyIntervalData(deviceId, category, startDate, endDate);
+
+      res.json({
+        success: true,
+        data: data,
+        count: data.length,
+        interval: 'hourly',
+        filters: { deviceId, category, startDate, endDate }
+      });
+    } catch (error) {
+      console.error('Error fetching hourly interval data:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch hourly interval data',
+        message: error.message
+      });
+    }
+  }
+
   // Get daily analytics for charts
   static async getDailyAnalytics(req, res) {
     try {
@@ -290,6 +336,25 @@ class AnalyticsController {
       res.status(500).json({
         success: false,
         error: 'Failed to fetch TB001 combined data',
+        message: error.message
+      });
+    }
+  }
+
+  // Get aggregated composition (weight and volume) for all bins
+  static async getAggregatedComposition(req, res) {
+    try {
+      const data = await AnalyticsModel.getAggregatedComposition();
+      res.json({
+        success: true,
+        data: data,
+        message: 'Aggregated composition data retrieved successfully'
+      });
+    } catch (error) {
+      console.error('Error fetching aggregated composition:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch aggregated composition',
         message: error.message
       });
     }

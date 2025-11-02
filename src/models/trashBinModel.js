@@ -5,18 +5,18 @@ class TrashBinModel {
   static async getAll() {
     const query = `
       SELECT
-        tb.trashbinId,
+        tb.trashbinid,
         tb.name,
         tb.location,
         tb.area,
         tb.floor,
         tb.capacity_liters,
         tb.status as bin_status,
-        COUNT(d.deviceId) as device_count,
+        COUNT(d.deviceid) as device_count,
         COUNT(CASE WHEN d.status = 'active' THEN 1 END) as active_devices
-      FROM TrashBin tb
-      LEFT JOIN Device d ON tb.trashbinId = d.trashbinId
-      GROUP BY tb.trashbinId, tb.name, tb.location, tb.area, tb.floor, tb.capacity_liters, tb.status
+      FROM trashbin tb
+      LEFT JOIN device d ON tb.trashbinid = d.trashbinid
+      GROUP BY tb.trashbinid, tb.name, tb.location, tb.area, tb.floor, tb.capacity_liters, tb.status
       ORDER BY tb.name
     `;
 
@@ -25,22 +25,22 @@ class TrashBinModel {
   }
 
   // Get trash bin by ID with detailed information
-  static async getById(trashbinId) {
+  static async getById(trashbinid) {
     const query = `
       SELECT
         tb.*,
         json_agg(
           json_build_object(
-            'deviceId', d.deviceId,
+            'deviceId', d.deviceid,
             'category', d.category,
             'status', d.status,
             'last_maintenance_date', d.last_maintenance_date
           )
-        ) FILTER (WHERE d.deviceId IS NOT NULL) as devices
-      FROM TrashBin tb
-      LEFT JOIN Device d ON tb.trashbinId = d.trashbinId
-      WHERE tb.trashbinId = $1
-      GROUP BY tb.trashbinId
+        ) FILTER (WHERE d.deviceid IS NOT NULL) as devices
+      FROM trashbin tb
+      LEFT JOIN device d ON tb.trashbinid = d.trashbinid
+      WHERE tb.trashbinid = $1
+      GROUP BY tb.trashbinid
     `;
 
     const result = await pool.query(query, [trashbinId]);
@@ -51,23 +51,23 @@ class TrashBinModel {
   static async getAllWithStatus() {
     const query = `
       SELECT
-        tb.trashbinId,
+        tb.trashbinid,
         tb.name,
         tb.location,
         tb.area,
         tb.floor,
         tb.capacity_liters,
         tb.status as bin_status,
-        d.deviceId,
+        d.deviceid,
         d.category,
         bs.total_weight_kg,
         bs.average_volume_percentage,
         bs.status as fill_status,
         bs.condition,
         bs.last_updated
-      FROM TrashBin tb
-      LEFT JOIN Device d ON tb.trashbinId = d.trashbinId
-      LEFT JOIN BinStatus bs ON d.deviceId = bs.deviceId
+      FROM trashbin tb
+      LEFT JOIN device d ON tb.trashbinid = d.trashbinid
+      LEFT JOIN binstatus bs ON d.deviceid = bs.deviceid
       WHERE tb.status = 'active'
       ORDER BY tb.name, d.category
     `;
@@ -81,11 +81,11 @@ class TrashBinModel {
     const query = `
       SELECT
         tb.*,
-        COUNT(d.deviceId) as device_count
-      FROM TrashBin tb
-      LEFT JOIN Device d ON tb.trashbinId = d.trashbinId
+        COUNT(d.deviceid) as device_count
+      FROM trashbin tb
+      LEFT JOIN device d ON tb.trashbinid = d.trashbinid
       WHERE tb.area ILIKE $1
-      GROUP BY tb.trashbinId
+      GROUP BY tb.trashbinid
       ORDER BY tb.name
     `;
 
@@ -96,7 +96,7 @@ class TrashBinModel {
   // Create new trash bin
   static async create(trashBinData) {
     const {
-      trashbinId,
+      trashbinid,
       name,
       location,
       area,
@@ -107,7 +107,7 @@ class TrashBinModel {
     } = trashBinData;
 
     const query = `
-      INSERT INTO TrashBin (trashbinId, name, location, area, floor, capacity_liters, installation_date, status)
+      INSERT INTO TrashBin (trashbinid, name, location, area, floor, capacity_liters, installation_date, status)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
@@ -118,7 +118,7 @@ class TrashBinModel {
   }
 
   // Update trash bin
-  static async update(trashbinId, updateData) {
+  static async update(trashbinid, updateData) {
     const fields = [];
     const values = [];
     let paramCount = 1;
@@ -136,11 +136,11 @@ class TrashBinModel {
       throw new Error('No fields to update');
     }
 
-    values.push(trashbinId);
+    values.push(trashbinid);
     const query = `
       UPDATE TrashBin
       SET ${fields.join(', ')}
-      WHERE trashbinId = $${paramCount}
+      WHERE trashbinid = $${paramCount}
       RETURNING *
     `;
 
@@ -149,8 +149,8 @@ class TrashBinModel {
   }
 
   // Delete trash bin
-  static async delete(trashbinId) {
-    const query = 'DELETE FROM TrashBin WHERE trashbinId = $1 RETURNING *';
+  static async delete(trashbinid) {
+    const query = 'DELETE FROM trashbin WHERE trashbinid = $1 RETURNING *';
     const result = await pool.query(query, [trashbinId]);
     return result.rows[0] || null;
   }

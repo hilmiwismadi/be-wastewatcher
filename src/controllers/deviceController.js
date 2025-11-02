@@ -4,7 +4,15 @@ class DeviceController {
   // Get all devices
   static async getAll(req, res) {
     try {
-      const devices = await DeviceModel.getAll();
+      const { trashbinid } = req.query;
+
+      let devices;
+      if (trashbinid) {
+        devices = await DeviceModel.getByTrashBinId(trashbinid);
+      } else {
+        devices = await DeviceModel.getAll();
+      }
+
       res.json({
         success: true,
         data: devices,

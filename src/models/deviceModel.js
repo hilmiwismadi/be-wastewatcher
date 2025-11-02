@@ -8,21 +8,21 @@ class DeviceModel {
         d.*,
         tb.name as bin_name,
         tb.location,
-        COUNT(s.sensorId) as sensor_count,
+        COUNT(s.sensorid) as sensor_count,
         bs.total_weight_kg,
         bs.average_volume_percentage,
         bs.status as fill_status,
         bs.last_updated,
         dh.battery_percentage,
         dh.error_count_24h
-      FROM Device d
-      LEFT JOIN TrashBin tb ON d.trashbinId = tb.trashbinId
-      LEFT JOIN Sensor s ON d.deviceId = s.deviceId
-      LEFT JOIN BinStatus bs ON d.deviceId = bs.deviceId
-      LEFT JOIN DeviceHealth dh ON d.deviceId = dh.deviceId AND dh.timestamp = (
-        SELECT MAX(timestamp) FROM DeviceHealth WHERE deviceId = d.deviceId
+      FROM device d
+      LEFT JOIN trashbin tb ON d.trashbinid = tb.trashbinid
+      LEFT JOIN sensor s ON d.deviceid = s.deviceid
+      LEFT JOIN binstatus bs ON d.deviceid = bs.deviceid
+      LEFT JOIN deviceHealth dh ON d.deviceid = dh.deviceid AND dh.timestamp = (
+        SELECT MAX(timestamp) FROM deviceHealth WHERE deviceid = d.deviceid
       )
-      GROUP BY d.deviceId, tb.name, tb.location, bs.total_weight_kg, bs.average_volume_percentage,
+      GROUP BY d.deviceid, tb.name, tb.location, bs.total_weight_kg, bs.average_volume_percentage,
                bs.status, bs.last_updated, dh.battery_percentage, dh.error_count_24h
       ORDER BY d.created_at DESC
     `;
@@ -32,7 +32,7 @@ class DeviceModel {
   }
 
   // Get device by ID with detailed information
-  static async getById(deviceId) {
+  static async getById(deviceid) {
     const query = `
       SELECT
         d.*,
@@ -42,18 +42,18 @@ class DeviceModel {
         tb.floor,
         json_agg(
           json_build_object(
-            'sensorId', s.sensorId,
+            'sensorId', s.sensorid,
             'sensor_type', s.sensor_type,
             'sensor_position', s.sensor_position,
             'status', s.status,
             'last_calibrated_date', s.last_calibrated_date
           )
-        ) FILTER (WHERE s.sensorId IS NOT NULL) as sensors
-      FROM Device d
-      LEFT JOIN TrashBin tb ON d.trashbinId = tb.trashbinId
-      LEFT JOIN Sensor s ON d.deviceId = s.deviceId
-      WHERE d.deviceId = $1
-      GROUP BY d.deviceId, tb.name, tb.location, tb.area, tb.floor
+        ) FILTER (WHERE s.sensorid IS NOT NULL) as sensors
+      FROM device d
+      LEFT JOIN trashbin tb ON d.trashbinid = tb.trashbinid
+      LEFT JOIN sensor s ON d.deviceid = s.deviceid
+      WHERE d.deviceid = $1
+      GROUP BY d.deviceid, tb.name, tb.location, tb.area, tb.floor
     `;
 
     const result = await pool.query(query, [deviceId]);
@@ -70,9 +70,9 @@ class DeviceModel {
         bs.status as fill_status,
         bs.average_volume_percentage,
         bs.total_weight_kg
-      FROM Device d
-      LEFT JOIN TrashBin tb ON d.trashbinId = tb.trashbinId
-      LEFT JOIN BinStatus bs ON d.deviceId = bs.deviceId
+      FROM device d
+      LEFT JOIN trashbin tb ON d.trashbinid = tb.trashbinid
+      LEFT JOIN binstatus bs ON d.deviceid = bs.deviceid
       WHERE d.category = $1
       ORDER BY d.created_at DESC
     `;
@@ -81,11 +81,42 @@ class DeviceModel {
     return result.rows;
   }
 
+  // Get devices by trash bin ID
+  static async getByTrashBinId(trashbinid) {
+    const query = `
+      SELECT
+        d.*,
+        tb.name as bin_name,
+        tb.location,
+        COUNT(s.sensorid) as sensor_count,
+        bs.total_weight_kg,
+        bs.average_volume_percentage,
+        bs.status as fill_status,
+        bs.last_updated,
+        dh.battery_percentage,
+        dh.error_count_24h
+      FROM device d
+      LEFT JOIN trashbin tb ON d.trashbinid = tb.trashbinid
+      LEFT JOIN sensor s ON d.deviceid = s.deviceid
+      LEFT JOIN binstatus bs ON d.deviceid = bs.deviceid
+      LEFT JOIN deviceHealth dh ON d.deviceid = dh.deviceid AND dh.timestamp = (
+        SELECT MAX(timestamp) FROM deviceHealth WHERE deviceid = d.deviceid
+      )
+      WHERE d.trashbinid = $1
+      GROUP BY d.deviceid, tb.name, tb.location, bs.total_weight_kg, bs.average_volume_percentage,
+               bs.status, bs.last_updated, dh.battery_percentage, dh.error_count_24h
+      ORDER BY d.category
+    `;
+
+    const result = await pool.query(query, [trashbinid]);
+    return result.rows;
+  }
+
   // Get devices with health status
   static async getWithHealthStatus() {
     const query = `
       SELECT
-        d.deviceId,
+        d.deviceid,
         d.category,
         d.status,
         tb.name as bin_name,
@@ -100,12 +131,12 @@ class DeviceModel {
           WHEN dh.error_count_24h > 5 THEN 'warning'
           ELSE 'healthy'
         END as health_status
-      FROM Device d
-      LEFT JOIN TrashBin tb ON d.trashbinId = tb.trashbinId
-      LEFT JOIN DeviceHealth dh ON d.deviceId = dh.deviceId AND dh.timestamp = (
-        SELECT MAX(timestamp) FROM DeviceHealth WHERE deviceId = d.deviceId
+      FROM device d
+      LEFT JOIN trashbin tb ON d.trashbinid = tb.trashbinid
+      LEFT JOIN deviceHealth dh ON d.deviceid = dh.deviceid AND dh.timestamp = (
+        SELECT MAX(timestamp) FROM deviceHealth WHERE deviceid = d.deviceid
       )
-      ORDER BY health_status DESC, d.deviceId
+      ORDER BY health_status DESC, d.deviceid
     `;
 
     const result = await pool.query(query);
@@ -113,7 +144,7 @@ class DeviceModel {
   }
 
   // Get device current status with real-time data
-  static async getCurrentStatus(deviceId) {
+  static async getCurrentStatus(deviceid) {
     const query = `
       SELECT
         d.*,
@@ -128,13 +159,13 @@ class DeviceModel {
         dh.battery_percentage,
         dh.error_count_24h,
         dh.error_details
-      FROM Device d
-      LEFT JOIN TrashBin tb ON d.trashbinId = tb.trashbinId
-      LEFT JOIN BinStatus bs ON d.deviceId = bs.deviceId
-      LEFT JOIN DeviceHealth dh ON d.deviceId = dh.deviceId AND dh.timestamp = (
-        SELECT MAX(timestamp) FROM DeviceHealth WHERE deviceId = d.deviceId
+      FROM device d
+      LEFT JOIN trashbin tb ON d.trashbinid = tb.trashbinid
+      LEFT JOIN binstatus bs ON d.deviceid = bs.deviceid
+      LEFT JOIN deviceHealth dh ON d.deviceid = dh.deviceid AND dh.timestamp = (
+        SELECT MAX(timestamp) FROM deviceHealth WHERE deviceid = d.deviceid
       )
-      WHERE d.deviceId = $1
+      WHERE d.deviceid = $1
     `;
 
     const result = await pool.query(query, [deviceId]);
@@ -144,26 +175,26 @@ class DeviceModel {
   // Create new device
   static async create(deviceData) {
     const {
-      deviceId,
-      trashbinId,
+      deviceid,
+      trashbinid,
       category,
       installation_date,
       status = 'active'
     } = deviceData;
 
     const query = `
-      INSERT INTO Device (deviceId, trashbinId, category, installation_date, status)
+      INSERT INTO Device (deviceid, trashbinid, category, installation_date, status)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
 
-    const values = [deviceId, trashbinId, category, installation_date, status];
+    const values = [deviceId, trashbinid, category, installation_date, status];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
 
   // Update device
-  static async update(deviceId, updateData) {
+  static async update(deviceid, updateData) {
     const fields = [];
     const values = [];
     let paramCount = 1;
@@ -180,11 +211,11 @@ class DeviceModel {
       throw new Error('No fields to update');
     }
 
-    values.push(deviceId);
+    values.push(deviceid);
     const query = `
       UPDATE Device
       SET ${fields.join(', ')}
-      WHERE deviceId = $${paramCount}
+      WHERE deviceid = $${paramCount}
       RETURNING *
     `;
 
@@ -193,8 +224,8 @@ class DeviceModel {
   }
 
   // Delete device
-  static async delete(deviceId) {
-    const query = 'DELETE FROM Device WHERE deviceId = $1 RETURNING *';
+  static async delete(deviceid) {
+    const query = 'DELETE FROM device WHERE deviceid = $1 RETURNING *';
     const result = await pool.query(query, [deviceId]);
     return result.rows[0] || null;
   }
@@ -211,7 +242,7 @@ class DeviceModel {
         COUNT(CASE WHEN category = 'Organic' THEN 1 END) as organic_devices,
         COUNT(CASE WHEN category = 'Inorganic' THEN 1 END) as inorganic_devices,
         COUNT(CASE WHEN category = 'B3' THEN 1 END) as b3_devices
-      FROM Device
+      FROM device
     `;
 
     const result = await pool.query(query);
