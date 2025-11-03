@@ -84,15 +84,15 @@ class AnalyticsController {
   // Get hourly interval data (for daily view)
   static async getHourlyIntervalData(req, res) {
     try {
-      const { deviceId, category, startDate, endDate } = req.query;
-      const data = await AnalyticsModel.getHourlyIntervalData(deviceId, category, startDate, endDate);
+      const { deviceId, category, startDate, endDate, trashbinid } = req.query;
+      const data = await AnalyticsModel.getHourlyIntervalData(deviceId, category, startDate, endDate, trashbinid);
 
       res.json({
         success: true,
         data: data,
         count: data.length,
         interval: 'hourly',
-        filters: { deviceId, category, startDate, endDate }
+        filters: { deviceId, category, startDate, endDate, trashbinid }
       });
     } catch (error) {
       console.error('Error fetching hourly interval data:', error);
@@ -107,7 +107,7 @@ class AnalyticsController {
   // Get daily analytics for charts
   static async getDailyAnalytics(req, res) {
     try {
-      const { days = 30, category, startDate, endDate } = req.query;
+      const { days = 30, category, startDate, endDate, deviceId, trashbinid } = req.query;
 
       let periodDescription = `${days} days`;
       if (startDate && endDate) {
@@ -118,7 +118,9 @@ class AnalyticsController {
         parseInt(days),
         category,
         startDate,
-        endDate
+        endDate,
+        deviceId,
+        trashbinid
       );
 
       res.json({

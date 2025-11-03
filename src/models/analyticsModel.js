@@ -128,7 +128,7 @@ class AnalyticsModel {
   }
 
   // Get data by hourly intervals (for daily view)
-  static async getHourlyIntervalData(deviceid = null, category = null, startDate = null, endDate = null) {
+  static async getHourlyIntervalData(deviceid = null, category = null, startDate = null, endDate = null, trashbinid = null) {
     let whereClause = "WHERE wd.timestamp >= NOW() - INTERVAL '7 days'";
     const params = [];
     let paramCount = 1;
@@ -139,7 +139,11 @@ class AnalyticsModel {
       paramCount += 2;
     }
 
-    if (deviceid) {
+    if (trashbinid) {
+      whereClause += ` AND d.trashbinid = $${paramCount}`;
+      params.push(trashbinid);
+      paramCount++;
+    } else if (deviceid) {
       whereClause += ` AND d.deviceid = $${paramCount}`;
       params.push(deviceid);
       paramCount++;
@@ -172,7 +176,7 @@ class AnalyticsModel {
   }
 
   // Get daily analytics for chart data
-  static async getDailyAnalytics(days = 30, category = null, startDate = null, endDate = null) {
+  static async getDailyAnalytics(days = 30, category = null, startDate = null, endDate = null, deviceId = null, trashbinid = null) {
     let whereClause = "WHERE da.analysis_date >= CURRENT_DATE - INTERVAL '30 days'";
     const params = [];
     let paramCount = 1;
@@ -184,6 +188,16 @@ class AnalyticsModel {
       paramCount += 2;
     } else if (days) {
       whereClause = `WHERE da.analysis_date >= CURRENT_DATE - INTERVAL '${days} days'`;
+    }
+
+    if (trashbinid) {
+      whereClause += ` AND d.trashbinid = $${paramCount}`;
+      params.push(trashbinid);
+      paramCount++;
+    } else if (deviceId) {
+      whereClause += ` AND da.deviceid = $${paramCount}`;
+      params.push(deviceId);
+      paramCount++;
     }
 
     if (category) {

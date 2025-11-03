@@ -43,7 +43,7 @@ class TrashBinModel {
       GROUP BY tb.trashbinid
     `;
 
-    const result = await pool.query(query, [trashbinId]);
+    const result = await pool.query(query, [trashbinid]);
     return result.rows[0] || null;
   }
 
@@ -112,7 +112,7 @@ class TrashBinModel {
       RETURNING *
     `;
 
-    const values = [trashbinId, name, location, area, floor, capacity_liters, installation_date, status];
+    const values = [trashbinid, name, location, area, floor, capacity_liters, installation_date, status];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
@@ -151,7 +151,7 @@ class TrashBinModel {
   // Delete trash bin
   static async delete(trashbinid) {
     const query = 'DELETE FROM trashbin WHERE trashbinid = $1 RETURNING *';
-    const result = await pool.query(query, [trashbinId]);
+    const result = await pool.query(query, [trashbinid]);
     return result.rows[0] || null;
   }
 }
