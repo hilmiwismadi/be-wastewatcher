@@ -84,18 +84,26 @@ class AnalyticsModel {
   }
 
   // Get data by 5-minute intervals (for hourly view)
-  static async getFiveMinuteIntervalData(deviceid = null, category = null, startDate = null, endDate = null) {
-    let whereClause = "WHERE wd.timestamp >= NOW() - INTERVAL '24 hours'";
+  // Optimized to only fetch 1 hour of data with 5-minute groupings
+  // Returns data in WIB timezone (UTC+7)
+  static async getFiveMinuteIntervalData(deviceid = null, category = null, startDate = null, endDate = null, trashbinid = null) {
+    let whereClause = "WHERE wd.timestamp >= NOW() - INTERVAL '1 hour'";
     const params = [];
     let paramCount = 1;
 
     if (startDate && endDate) {
-      whereClause = `WHERE wd.timestamp >= $${paramCount} AND wd.timestamp <= $${paramCount + 1}`;
+      // Convert WIB to UTC for querying (subtract 7 hours)
+      whereClause = `WHERE wd.timestamp >= ($${paramCount}::timestamp - INTERVAL '7 hours')
+                     AND wd.timestamp <= ($${paramCount + 1}::timestamp - INTERVAL '7 hours')`;
       params.push(startDate, endDate);
       paramCount += 2;
     }
 
-    if (deviceid) {
+    if (trashbinid) {
+      whereClause += ` AND d.trashbinid = $${paramCount}`;
+      params.push(trashbinid);
+      paramCount++;
+    } else if (deviceid) {
       whereClause += ` AND d.deviceid = $${paramCount}`;
       params.push(deviceid);
       paramCount++;
@@ -106,21 +114,71 @@ class AnalyticsModel {
       params.push(category);
     }
 
+    // Query with proper 5-minute intervals including volume data
+    // Returns time_interval, wib_time_display, avg_weight, and avg_volume for frontend
     const query = `
+      WITH weight_intervals AS (
+        SELECT
+          DATE_TRUNC('hour', wd.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') +
+          INTERVAL '5 minute' * FLOOR(EXTRACT(MINUTE FROM (wd.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')) / 5) as wib_interval,
+          wd.timestamp,
+          wd.weightdataid,
+          wd.weight_kg,
+          d.deviceid,
+          d.category
+        FROM weightdata wd
+        INNER JOIN sensor s ON wd.sensorid = s.sensorid
+        INNER JOIN device d ON s.deviceid = d.deviceid
+        ${whereClause}
+      ),
+      volume_intervals AS (
+        SELECT
+          DATE_TRUNC('hour', vd.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') +
+          INTERVAL '5 minute' * FLOOR(EXTRACT(MINUTE FROM (vd.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')) / 5) as wib_interval,
+          vd.timestamp,
+          vd.volumedataid,
+          vd.fill_percentage,
+          d.deviceid,
+          d.category
+        FROM volumedata vd
+        INNER JOIN sensor s ON vd.sensorid = s.sensorid
+        INNER JOIN device d ON s.deviceid = d.deviceid
+        ${whereClause.replace(/wd\./g, 'vd.')}
+      ),
+      weight_agg AS (
+        SELECT
+          wib_interval,
+          deviceid,
+          category,
+          COUNT(DISTINCT weightdataid) as weight_data_points,
+          ROUND(AVG(weight_kg)::numeric, 2) as avg_weight
+        FROM weight_intervals
+        GROUP BY wib_interval, deviceid, category
+      ),
+      volume_agg AS (
+        SELECT
+          wib_interval,
+          deviceid,
+          category,
+          COUNT(DISTINCT volumedataid) as volume_data_points,
+          ROUND(AVG(fill_percentage)::numeric, 2) as avg_volume
+        FROM volume_intervals
+        GROUP BY wib_interval, deviceid, category
+      )
       SELECT
-        DATE_TRUNC('minute', wd.timestamp) +
-        INTERVAL '5 minute' * FLOOR(EXTRACT(MINUTE FROM wd.timestamp) / 5) as time_interval,
-        COUNT(*) as data_points,
-        ROUND(AVG(wd.weight_kg)::numeric, 2) as avg_weight,
-        ROUND(AVG(vd.fill_percentage)::numeric, 2) as avg_volume
-      FROM weightdata wd
-      JOIN sensor s ON wd.sensorid = s.sensorid
-      JOIN device d ON s.deviceid = d.deviceid
-      LEFT JOIN volumedata vd ON s.sensorid = vd.sensorid
-        AND DATE_TRUNC('minute', vd.timestamp) = DATE_TRUNC('minute', wd.timestamp)
-      ${whereClause}
-      GROUP BY time_interval
-      ORDER BY time_interval
+        COALESCE(w.wib_interval, v.wib_interval) as time_interval,
+        TO_CHAR(COALESCE(w.wib_interval, v.wib_interval), 'HH24:MI') as wib_time_display,
+        COALESCE(w.deviceid, v.deviceid) as deviceid,
+        COALESCE(w.category, v.category) as category,
+        COALESCE(w.weight_data_points, 0) as data_points,
+        COALESCE(w.avg_weight, 0) as avg_weight,
+        COALESCE(v.avg_volume, 0) as avg_volume
+      FROM weight_agg w
+      FULL OUTER JOIN volume_agg v
+        ON w.wib_interval = v.wib_interval
+        AND w.deviceid = v.deviceid
+      ORDER BY time_interval, deviceid
+      LIMIT 200
     `;
 
     const result = await pool.query(query, params);
@@ -129,12 +187,13 @@ class AnalyticsModel {
 
   // Get data by hourly intervals (for daily view)
   static async getHourlyIntervalData(deviceid = null, category = null, startDate = null, endDate = null, trashbinid = null) {
-    let whereClause = "WHERE wd.timestamp >= NOW() - INTERVAL '7 days'";
+    let whereClause = "WHERE wd.timestamp >= NOW() - INTERVAL '1 day'";
     const params = [];
     let paramCount = 1;
 
     if (startDate && endDate) {
-      whereClause = `WHERE wd.timestamp >= $${paramCount} AND wd.timestamp <= $${paramCount + 1}`;
+      // Ensure we don't query more than 2 days at once for performance
+      whereClause = `WHERE wd.timestamp >= $${paramCount}::timestamp AND wd.timestamp <= $${paramCount + 1}::timestamp`;
       params.push(startDate, endDate);
       paramCount += 2;
     }
@@ -157,6 +216,8 @@ class AnalyticsModel {
     const query = `
       SELECT
         DATE_TRUNC('hour', wd.timestamp) as time_interval,
+        d.deviceid,
+        d.category,
         COUNT(DISTINCT wd.weightdataid) as data_points,
         ROUND(AVG(wd.weight_kg)::numeric, 2) as avg_weight,
         ROUND(AVG(vd.fill_percentage)::numeric, 2) as avg_volume
@@ -167,8 +228,8 @@ class AnalyticsModel {
       LEFT JOIN volumedata vd ON vd.sensorid = vs.sensorid
         AND DATE_TRUNC('hour', vd.timestamp) = DATE_TRUNC('hour', wd.timestamp)
       ${whereClause}
-      GROUP BY time_interval
-      ORDER BY time_interval
+      GROUP BY time_interval, d.deviceid, d.category
+      ORDER BY time_interval, d.deviceid
     `;
 
     const result = await pool.query(query, params);
@@ -208,6 +269,8 @@ class AnalyticsModel {
     const query = `
       SELECT
         da.analysis_date,
+        da.deviceid,
+        d.category,
         COUNT(*) as device_count,
         ROUND(AVG(da.avg_weight)::numeric, 2) as avg_weight,
         ROUND(AVG(da.max_weight)::numeric, 2) as max_weight,
@@ -218,8 +281,8 @@ class AnalyticsModel {
       FROM dailyanalytics da
       JOIN device d ON da.deviceid = d.deviceid
       ${whereClause}
-      GROUP BY da.analysis_date
-      ORDER BY da.analysis_date
+      GROUP BY da.analysis_date, da.deviceid, d.category
+      ORDER BY da.analysis_date, da.deviceid
     `;
 
     const result = await pool.query(query, params);

@@ -61,15 +61,15 @@ class AnalyticsController {
   // Get 5-minute interval data (for hourly view)
   static async getFiveMinuteIntervalData(req, res) {
     try {
-      const { deviceId, category, startDate, endDate } = req.query;
-      const data = await AnalyticsModel.getFiveMinuteIntervalData(deviceId, category, startDate, endDate);
+      const { deviceId, category, startDate, endDate, trashbinid } = req.query;
+      const data = await AnalyticsModel.getFiveMinuteIntervalData(deviceId, category, startDate, endDate, trashbinid);
 
       res.json({
         success: true,
         data: data,
         count: data.length,
         interval: '5 minutes',
-        filters: { deviceId, category, startDate, endDate }
+        filters: { deviceId, category, startDate, endDate, trashbinid }
       });
     } catch (error) {
       console.error('Error fetching 5-minute interval data:', error);
