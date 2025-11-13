@@ -95,7 +95,7 @@ model BinStatus {
   total_weight_kg           Float?
   average_volume_percentage Float?
   status                    String   @db.VarChar(20)
-  condition                 String?  @db.VarChar(20)
+  condition                 String?  @db.VarChar(50)
   last_updated              DateTime @default(now()) @db.Timestamp(6)
   calculation_method        String?  @default("average") @db.VarChar(20)
   sensor_contributions      Json?
@@ -113,7 +113,7 @@ model BinStatusHistory {
   total_weight_kg           Float?
   average_volume_percentage Float?
   status                    String   @db.VarChar(20)
-  condition                 String?  @db.VarChar(20)
+  condition                 String?  @db.VarChar(50)
   recorded_at               DateTime @default(now()) @db.Timestamp(6)
   trigger_reason            String?  @db.VarChar(50)
   device                    Device   @relation(fields: [deviceid], references: [deviceid], onDelete: Cascade, onUpdate: NoAction)
