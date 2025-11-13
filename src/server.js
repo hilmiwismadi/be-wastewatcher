@@ -46,6 +46,8 @@ app.use(cors({
     'http://localhost:3003',
     'http://localhost:3005',
     'http://localhost:3006',
+    'https://wastewatcher.netlify.app',
+    'https://wastewatcher.vercel.app',
     process.env.FRONTEND_URL || 'http://localhost:3000'
   ],
   credentials: true

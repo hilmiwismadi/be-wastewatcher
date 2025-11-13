@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: wastewatcher-backend
+    env: node
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: FRONTEND_URL
+        value: https://wastewatcher.netlify.app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wastewatcher-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
+
+databases:
+  - name: wastewatcher-db
+    databaseName: wastewatcher_db
+    user: wastewatcher_user
