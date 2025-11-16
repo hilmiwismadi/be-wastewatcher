@@ -1,4 +1,5 @@
 const mqtt = require('mqtt');
+const SensorReadingModel = require('../models/sensorReadingModel');
 
 class MQTTService {
   constructor() {
@@ -18,6 +19,11 @@ class MQTTService {
         residue: []
       }
     };
+
+    // Initialize database table
+    SensorReadingModel.createTable().catch(err => {
+      console.error('Failed to create sensor_readings table on MQTT service init:', err);
+    });
   }
 
   connect() {
@@ -71,6 +77,9 @@ class MQTTService {
             // Store data for HTTP polling
             this.storeWasteBinData(parsedData);
             console.log(`💾 Data stored for location: ${parsedData.location}`);
+
+            // Save to database
+            this.saveSensorReadingToDatabase(parsedData);
 
             // Also notify WebSocket subscribers (if any)
             this.notifySubscribers(parsedData);
@@ -309,6 +318,29 @@ class MQTTService {
     // Keep only last 50 data points
     if (this.latestData[location][binType].length > 50) {
       this.latestData[location][binType] = this.latestData[location][binType].slice(-50);
+    }
+  }
+
+  // Save sensor reading to database
+  async saveSensorReadingToDatabase(parsedData) {
+    try {
+      const reading = {
+        location: parsedData.location,
+        binType: parsedData.binType,
+        sensorTopLeft: parsedData.data.sensors.topLeft,
+        sensorTopRight: parsedData.data.sensors.topRight,
+        sensorBottomLeft: parsedData.data.sensors.bottomLeft,
+        sensorBottomRight: parsedData.data.sensors.bottomRight,
+        averageDistance: parsedData.data.average,
+        weight: parsedData.data.weight || 0,
+        timestamp: new Date(parsedData.timestamp)
+      };
+
+      await SensorReadingModel.create(reading);
+      console.log(`✅ Sensor reading saved to database: ${parsedData.location}/${parsedData.binType}`);
+    } catch (error) {
+      console.error('❌ Error saving sensor reading to database:', error);
+      // Don't throw - we don't want MQTT processing to fail if DB save fails
     }
   }
 
