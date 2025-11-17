@@ -5,3 +5,4 @@
   dist/
   build/" > .gitignore
 /src/generated/prisma
+railway-import.sql
