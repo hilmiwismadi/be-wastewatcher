@@ -48,10 +48,15 @@ app.use(cors({
     'http://localhost:3005',
     'http://localhost:3006',
     'https://wastewatcher.netlify.app',
+    'https://wastwatcher.vercel.app',
     'https://wastewatcher.vercel.app',
     process.env.FRONTEND_URL || 'http://localhost:3000'
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400 // 24 hours
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
