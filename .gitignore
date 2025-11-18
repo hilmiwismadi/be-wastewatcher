@@ -1,8 +1,18 @@
- echo "node_modules/
-  .env
-  *.log
-  .DS_Store
-  dist/
-  build/" > .gitignore
+node_modules/
+.env
+.env.local
+.env.production
+*.log
+.DS_Store
+dist/
+build/
 /src/generated/prisma
 railway-import.sql
+temp-swagger.json
+.vscode/
+*.swp
+*.swo
+*~
+.idea/
+coverage/
+.nyc_output/

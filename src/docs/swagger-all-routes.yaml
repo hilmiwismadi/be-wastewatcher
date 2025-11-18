@@ -1,0 +1,606 @@
+# This file contains all Swagger/OpenAPI documentation for WasteWatcher API
+# Import this in swagger.js to get complete API documentation
+
+paths:
+  # === SENSOR ROUTES ===
+  /api/sensors/readings:
+    post:
+      tags:
+        - Sensors
+      summary: Save sensor reading
+      description: Store a new sensor reading from IoT device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - location
+                - binType
+              properties:
+                location:
+                  type: string
+                  example: KantinSGLC
+                binType:
+                  type: string
+                  enum: [organic, anorganic, residue]
+                  example: organic
+                sensorTopLeft:
+                  type: number
+                  example: 25.5
+                sensorTopRight:
+                  type: number
+                  example: 26.3
+                sensorBottomLeft:
+                  type: number
+                  example: 24.8
+                sensorBottomRight:
+                  type: number
+                  example: 25.1
+                averageDistance:
+                  type: number
+                  example: 25.425
+                weight:
+                  type: number
+                  example: 12.5
+                timestamp:
+                  type: string
+                  format: date-time
+                  example: 2025-11-18T10:30:00.000Z
+      responses:
+        '201':
+          description: Sensor reading saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Missing required fields
+        '500':
+          description: Internal server error
+
+  /api/sensors/readings/{location}:
+    get:
+      tags:
+        - Sensors
+      summary: Get sensor readings by location
+      description: Retrieve sensor readings for a specific location. Use 'all' to get readings from all locations.
+      parameters:
+        - in: path
+          name: location
+          required: true
+          schema:
+            type: string
+          description: Location name or 'all' for all locations
+          example: KantinSGLC
+        - in: query
+          name: binType
+          schema:
+            type: string
+            enum: [organic, anorganic, residue]
+          description: Filter by bin type
+          example: organic
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+          description: Maximum number of readings to return
+          example: 100
+      responses:
+        '200':
+          description: Sensor readings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  location:
+                    type: string
+                    example: KantinSGLC
+                  binType:
+                    type: string
+                    example: organic
+                  count:
+                    type: integer
+                    example: 100
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SensorReading'
+        '500':
+          description: Internal server error
+
+  /api/sensors/readings/{location}/range:
+    get:
+      tags:
+        - Sensors
+      summary: Get sensor readings by time range
+      description: Retrieve sensor readings within a specific time range
+      parameters:
+        - in: path
+          name: location
+          required: true
+          schema:
+            type: string
+          example: KantinSGLC
+        - in: query
+          name: binType
+          required: true
+          schema:
+            type: string
+            enum: [organic, anorganic, residue]
+          example: organic
+        - in: query
+          name: startTime
+          required: true
+          schema:
+            type: string
+            format: date-time
+          example: 2025-11-18T00:00:00.000Z
+        - in: query
+          name: endTime
+          required: true
+          schema:
+            type: string
+            format: date-time
+          example: 2025-11-18T23:59:59.999Z
+      responses:
+        '200':
+          description: Sensor readings retrieved successfully
+        '400':
+          description: Missing required query parameters
+        '500':
+          description: Internal server error
+
+  /api/sensors/locations:
+    get:
+      tags:
+        - Sensors
+      summary: Get all locations
+      description: Retrieve list of all available sensor locations
+      responses:
+        '200':
+          description: Locations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    example: 5
+                  data:
+                    type: array
+                    items:
+                      type: string
+                    example: [KantinSGLC, Lt2SGLC]
+        '500':
+          description: Internal server error
+
+  # === DEVICE ROUTES ===
+  /api/devices:
+    get:
+      tags:
+        - Devices
+      summary: Get all devices
+      description: Retrieve list of all IoT devices
+      responses:
+        '200':
+          description: Devices retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Device'
+    post:
+      tags:
+        - Devices
+      summary: Create new device
+      description: Register a new IoT device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - deviceid
+                - trashbinid
+                - category
+              properties:
+                deviceid:
+                  type: string
+                  example: DEV-SELATAN-LT1-ORG
+                trashbinid:
+                  type: string
+                  example: TB-SELATAN-LT1
+                category:
+                  type: string
+                  enum: [Organic, Anorganic, Residue]
+                  example: Organic
+      responses:
+        '201':
+          description: Device created successfully
+        '400':
+          description: Invalid input
+        '500':
+          description: Internal server error
+
+  /api/devices/{id}:
+    get:
+      tags:
+        - Devices
+      summary: Get specific device
+      description: Retrieve details of a specific device
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: DEV-SELATAN-LT1-ORG
+      responses:
+        '200':
+          description: Device found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Device'
+    put:
+      tags:
+        - Devices
+      summary: Update device
+      description: Update device information
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: DEV-SELATAN-LT1-ORG
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                  example: Organic
+                battery_percentage:
+                  type: number
+                  example: 85
+                status:
+                  type: string
+                  enum: [active, inactive, maintenance]
+                  example: active
+      responses:
+        '200':
+          description: Device updated successfully
+    delete:
+      tags:
+        - Devices
+      summary: Delete device
+      description: Remove a device from the system
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: DEV-SELATAN-LT1-ORG
+      responses:
+        '200':
+          description: Device deleted successfully
+
+  /api/devices/health:
+    get:
+      tags:
+        - Devices
+      summary: Get devices with health status
+      description: Retrieve all devices with their current health status
+      responses:
+        '200':
+          description: Device health data retrieved successfully
+
+  /api/devices/statistics:
+    get:
+      tags:
+        - Devices
+      summary: Get device statistics
+      description: Get summary statistics for all devices
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+
+  /api/devices/category/{category}:
+    get:
+      tags:
+        - Devices
+      summary: Get devices by category
+      description: Filter devices by waste category
+      parameters:
+        - in: path
+          name: category
+          required: true
+          schema:
+            type: string
+            enum: [Organic, Anorganic, Residue]
+          example: Organic
+      responses:
+        '200':
+          description: Devices found
+
+  /api/devices/{id}/status:
+    get:
+      tags:
+        - Devices
+      summary: Get device current status
+      description: Get real-time status of a specific device
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: DEV-SELATAN-LT1-ORG
+      responses:
+        '200':
+          description: Device status retrieved
+
+  # === ANALYTICS ROUTES ===
+  /api/analytics/dashboard:
+    get:
+      tags:
+        - Analytics
+      summary: Get dashboard overview
+      description: Get summary statistics for dashboard display
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+
+  /api/analytics/daily:
+    get:
+      tags:
+        - Analytics
+      summary: Get daily analytics
+      description: Get daily aggregated waste data
+      parameters:
+        - in: query
+          name: trashbinid
+          schema:
+            type: string
+          example: TB-SELATAN-LT1
+        - in: query
+          name: deviceid
+          schema:
+            type: string
+          example: DEV-SELATAN-LT1-ORG
+        - in: query
+          name: category
+          schema:
+            type: string
+            enum: [Organic, Anorganic, Residue]
+          example: Organic
+        - in: query
+          name: days
+          schema:
+            type: integer
+            default: 7
+          example: 30
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          example: 2025-11-01
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          example: 2025-11-30
+      responses:
+        '200':
+          description: Daily analytics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DailyAnalytics'
+
+  /api/analytics/intervals/5-minute:
+    get:
+      tags:
+        - Analytics
+      summary: Get 5-minute interval data
+      description: Get waste data in 5-minute intervals (for hourly view)
+      parameters:
+        - in: query
+          name: trashbinid
+          schema:
+            type: string
+          example: TB-SELATAN-LT1
+        - in: query
+          name: deviceid
+          schema:
+            type: string
+          example: DEV-SELATAN-LT1-ORG
+        - in: query
+          name: category
+          schema:
+            type: string
+          example: Organic
+        - in: query
+          name: startDate
+          schema:
+            type: string
+          example: 2025-11-18 10:00:00
+        - in: query
+          name: endDate
+          schema:
+            type: string
+          example: 2025-11-18 10:59:59
+      responses:
+        '200':
+          description: 5-minute interval data retrieved
+
+  /api/analytics/intervals/hourly:
+    get:
+      tags:
+        - Analytics
+      summary: Get hourly interval data
+      description: Get waste data aggregated by hour (for daily view)
+      parameters:
+        - in: query
+          name: trashbinid
+          schema:
+            type: string
+          example: TB-SELATAN-LT1
+        - in: query
+          name: deviceid
+          schema:
+            type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: startDate
+          schema:
+            type: string
+          example: 2025-11-18
+        - in: query
+          name: endDate
+          schema:
+            type: string
+          example: 2025-11-18
+      responses:
+        '200':
+          description: Hourly data retrieved
+
+  /api/analytics/waste-distribution:
+    get:
+      tags:
+        - Analytics
+      summary: Get waste category distribution
+      description: Get percentage distribution of waste categories
+      responses:
+        '200':
+          description: Distribution data retrieved
+
+  /api/analytics/hourly-patterns:
+    get:
+      tags:
+        - Analytics
+      summary: Get hourly waste patterns
+      description: Get waste generation patterns by hour of day
+      responses:
+        '200':
+          description: Pattern data retrieved
+
+  /api/analytics/fill-levels:
+    get:
+      tags:
+        - Analytics
+      summary: Get fill level distribution
+      description: Get distribution of fill levels across bins
+      responses:
+        '200':
+          description: Fill level data retrieved
+
+  /api/analytics/locations:
+    get:
+      tags:
+        - Analytics
+      summary: Get location-based analytics
+      description: Get analytics data grouped by location
+      responses:
+        '200':
+          description: Location analytics retrieved
+
+  /api/analytics/devices/{deviceId}/realtime:
+    get:
+      tags:
+        - Analytics
+      summary: Get real-time device data
+      description: Get latest real-time data for a specific device
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+          example: DEV-SELATAN-LT1-ORG
+      responses:
+        '200':
+          description: Real-time data retrieved
+
+  /api/analytics/collection-trends:
+    get:
+      tags:
+        - Analytics
+      summary: Get collection trends
+      description: Get waste collection frequency trends over time
+      responses:
+        '200':
+          description: Collection trends retrieved
+
+  /api/analytics/health-trends:
+    get:
+      tags:
+        - Analytics
+      summary: Get device health trends
+      description: Get device health metrics over time
+      responses:
+        '200':
+          description: Health trends retrieved
+
+  /api/analytics/alert-statistics:
+    get:
+      tags:
+        - Analytics
+      summary: Get alert statistics
+      description: Get summary statistics for system alerts
+      responses:
+        '200':
+          description: Alert statistics retrieved
+
+  /api/analytics/composition/aggregated:
+    get:
+      tags:
+        - Analytics
+      summary: Get aggregated composition
+      description: Get waste composition aggregated across all bins
+      responses:
+        '200':
+          description: Aggregated composition retrieved

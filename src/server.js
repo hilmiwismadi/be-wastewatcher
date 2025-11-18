@@ -7,6 +7,8 @@ const rateLimit = require('express-rate-limit');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const WebSocket = require('ws');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
 require('dotenv').config();
 
 const { testConnection } = require('./config/database');
@@ -90,7 +92,49 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'connection', status: 'connected' }));
 });
 
+// Swagger API Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'WasteWatcher API Docs'
+}));
+
+// Swagger JSON endpoint
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
 // Health check endpoint
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     tags:
+ *       - Health
+ *     summary: Health check endpoint
+ *     description: Returns the current health status of the server
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: OK
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                   example: 2025-11-18T10:30:00.000Z
+ *                 uptime:
+ *                   type: number
+ *                   example: 3600
+ *                 environment:
+ *                   type: string
+ *                   example: development
+ */
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',

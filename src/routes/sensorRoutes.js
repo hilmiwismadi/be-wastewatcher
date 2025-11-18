@@ -7,7 +7,74 @@ SensorReadingModel.createTable().catch(err => {
   console.error('Failed to create sensor_readings table:', err);
 });
 
-// POST endpoint to save sensor reading
+/**
+ * @swagger
+ * /api/sensors/readings:
+ *   post:
+ *     tags:
+ *       - Sensors
+ *     summary: Save sensor reading
+ *     description: Store a new sensor reading from IoT device
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - location
+ *               - binType
+ *             properties:
+ *               location:
+ *                 type: string
+ *                 example: KantinSGLC
+ *               binType:
+ *                 type: string
+ *                 enum: [organic, anorganic, residue]
+ *                 example: organic
+ *               sensorTopLeft:
+ *                 type: number
+ *                 example: 25.5
+ *               sensorTopRight:
+ *                 type: number
+ *                 example: 26.3
+ *               sensorBottomLeft:
+ *                 type: number
+ *                 example: 24.8
+ *               sensorBottomRight:
+ *                 type: number
+ *                 example: 25.1
+ *               averageDistance:
+ *                 type: number
+ *                 example: 25.425
+ *               weight:
+ *                 type: number
+ *                 example: 12.5
+ *               timestamp:
+ *                 type: string
+ *                 format: date-time
+ *                 example: 2025-11-18T10:30:00.000Z
+ *     responses:
+ *       201:
+ *         description: Sensor reading saved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Sensor reading saved successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/SensorReading'
+ *       400:
+ *         description: Missing required fields
+ *       500:
+ *         description: Internal server error
+ */
 router.post('/readings', async (req, res) => {
   try {
     const {
