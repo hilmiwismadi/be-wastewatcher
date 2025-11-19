@@ -6,7 +6,7 @@ class MQTTService {
     this.client = null;
     this.subscribers = new Set();
     this.brokerUrl = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
-    this.topics = ['CapsE6/Lt2SGLC', 'CapsE6/KantinSGLC']; // Multiple topics
+    this.topics = ['CapsE6/Lt2SGLC/#', 'CapsE6/KantinSGLC/#']; // Multiple topics with wildcards to catch all subtopics
     this.latestData = {
       'Lt2SGLC': {
         organic: [],
@@ -274,8 +274,8 @@ class MQTTService {
   detectBinType(topic) {
     const topicLower = topic.toLowerCase();
 
-    // Fase Production: CapsE6/KantinSGLC/Organic
-    if (topicLower.includes('/organic')) return 'organic';
+    // Fase Production: CapsE6/KantinSGLC/Organic or CapsE6/KantinSGLC/Organik
+    if (topicLower.includes('/organic') || topicLower.includes('/organik')) return 'organic';
     if (topicLower.includes('/anorganic') || topicLower.includes('/anorganik')) return 'anorganic';
     if (topicLower.includes('/residue') || topicLower.includes('/residu')) return 'residue';
 
