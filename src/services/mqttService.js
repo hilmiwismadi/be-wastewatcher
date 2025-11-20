@@ -309,12 +309,29 @@ class MQTTService {
   }
 
   // =====================================================
-  // HELPER: Hitung rata-rata sensor
+  // HELPER: Hitung rata-rata sensor dengan error handling
   // =====================================================
+  // Sensor readings >= 2000 are considered errors (e.g., 65535)
+  // Only valid sensors are used in average calculation
   calculateAverage(distances) {
     if (!distances || distances.length === 0) return 0;
-    const sum = distances.reduce((acc, val) => acc + (val || 0), 0);
-    return Math.round(sum / distances.length);
+
+    // Error threshold - readings >= 2000cm are sensor errors
+    const SENSOR_ERROR_THRESHOLD = 2000;
+    const SENSOR_MIN_VALID = 0;
+
+    // Filter out error readings
+    const validDistances = distances.filter(val => {
+      const num = val || 0;
+      return num >= SENSOR_MIN_VALID && num < SENSOR_ERROR_THRESHOLD;
+    });
+
+    // If all sensors are errors, return 0
+    if (validDistances.length === 0) return 0;
+
+    // Calculate average using only valid sensors
+    const sum = validDistances.reduce((acc, val) => acc + val, 0);
+    return Math.round(sum / validDistances.length);
   }
 
   // Store waste bin data
