@@ -1,5 +1,8 @@
 const mqtt = require('mqtt');
 const SensorReadingModel = require('../models/sensorReadingModel');
+const { PrismaClient } = require('../generated/prisma');
+
+const prisma = new PrismaClient();
 
 class MQTTService {
   constructor() {
@@ -17,6 +20,25 @@ class MQTTService {
         organic: [],
         anorganic: [],
         residue: []
+      }
+    };
+
+    // Battery system configuration
+    this.BATTERY_REDUCTION_RATE = 0.014; // 0.014% per MQTT message
+    this.BATTERY_FLOOR = 0.0; // Minimum battery percentage
+
+    // Map MQTT location + binType to Device IDs
+    // This mapping connects MQTT topics to database device records
+    this.locationToDeviceMapping = {
+      'Lt2SGLC': {
+        'organic': 'DEV-LT2-ORG',                // Device ID for LT2 Organic bin (if exists)
+        'anorganic': 'DEV-LT2-ANO',              // Device ID for LT2 Anorganic bin (if exists)
+        'residue': 'DEV-LT2-RES'                 // Device ID for LT2 Residue bin (if exists)
+      },
+      'KantinSGLC': {
+        'organic': 'DEV_KANTIN_LT1_ORGANIC',     // Device ID for Kantin LT1 Organic bin
+        'anorganic': 'DEV_KANTIN_LT1_ANORGANIC', // Device ID for Kantin LT1 Anorganic bin
+        'residue': 'DEV_KANTIN_LT1_RESIDUE'      // Device ID for Kantin LT1 Residue bin
       }
     };
 
@@ -80,6 +102,9 @@ class MQTTService {
 
             // Save to database
             this.saveSensorReadingToDatabase(parsedData);
+
+            // Update battery percentage for this device
+            this.updateBatteryPercentage(parsedData.location, parsedData.binType);
 
             // Also notify WebSocket subscribers (if any)
             this.notifySubscribers(parsedData);
@@ -365,6 +390,111 @@ class MQTTService {
       console.log('📤 Published to MQTT:', data);
     } else {
       console.error('❌ MQTT client not connected');
+    }
+  }
+
+  // =====================================================
+  // 🔋 BATTERY MANAGEMENT SYSTEM
+  // =====================================================
+
+  /**
+   * Get device ID from MQTT location and bin type
+   * @param {string} location - MQTT location (e.g., 'Lt2SGLC', 'KantinSGLC')
+   * @param {string} binType - Bin type ('organic', 'anorganic', 'residue')
+   * @returns {string|null} Device ID or null if not found
+   */
+  getDeviceIdFromLocation(location, binType) {
+    try {
+      const deviceId = this.locationToDeviceMapping[location]?.[binType];
+
+      if (!deviceId) {
+        console.warn(`⚠️ No device mapping found for location: ${location}, binType: ${binType}`);
+        return null;
+      }
+
+      return deviceId;
+    } catch (error) {
+      console.error('❌ Error getting device ID from location:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update battery percentage for a device (reduce by 0.014%)
+   * Called automatically when MQTT data is received
+   * @param {string} location - MQTT location
+   * @param {string} binType - Bin type
+   */
+  async updateBatteryPercentage(location, binType) {
+    try {
+      // Get device ID from location mapping
+      const deviceId = this.getDeviceIdFromLocation(location, binType);
+
+      if (!deviceId) {
+        console.warn(`⚠️ Skipping battery update - no device ID for ${location}/${binType}`);
+        return;
+      }
+
+      // Get current battery from latest devicehealth record
+      const latestHealth = await prisma.deviceHealth.findFirst({
+        where: { deviceid: deviceId },
+        orderBy: { timestamp: 'desc' }
+      });
+
+      let currentBattery = latestHealth?.battery_percentage ?? 94.0;
+
+      // Calculate new battery (reduce by 0.014%)
+      let newBattery = currentBattery - this.BATTERY_REDUCTION_RATE;
+
+      // Apply floor (cannot go below 0%)
+      newBattery = Math.max(newBattery, this.BATTERY_FLOOR);
+
+      // Generate unique health ID
+      const healthId = `DH-${deviceId}-${Date.now()}`;
+
+      // Insert new battery record
+      await prisma.deviceHealth.create({
+        data: {
+          healthid: healthId,
+          deviceid: deviceId,
+          battery_percentage: newBattery,
+          error_count_24h: latestHealth?.error_count_24h ?? 0,
+          timestamp: new Date()
+        }
+      });
+
+      console.log(`🔋 Battery updated for ${deviceId}: ${currentBattery.toFixed(3)}% → ${newBattery.toFixed(3)}% (-${this.BATTERY_REDUCTION_RATE}%)`);
+
+      // Warn if battery is critically low
+      if (newBattery <= 20 && newBattery > this.BATTERY_FLOOR) {
+        console.warn(`⚠️ LOW BATTERY WARNING: Device ${deviceId} is at ${newBattery.toFixed(2)}%`);
+      } else if (newBattery === this.BATTERY_FLOOR) {
+        console.error(`🚨 CRITICAL: Device ${deviceId} battery depleted (0%)!`);
+      }
+
+    } catch (error) {
+      console.error(`❌ Error updating battery for ${location}/${binType}:`, error);
+      // Don't throw - battery update failure shouldn't break MQTT processing
+    }
+  }
+
+  /**
+   * Get current battery percentage for a device
+   * @param {string} deviceId - Device ID
+   * @returns {Promise<number|null>} Current battery percentage or null
+   */
+  async getCurrentBattery(deviceId) {
+    try {
+      const latestHealth = await prisma.deviceHealth.findFirst({
+        where: { deviceid: deviceId },
+        orderBy: { timestamp: 'desc' },
+        select: { battery_percentage: true }
+      });
+
+      return latestHealth?.battery_percentage ?? null;
+    } catch (error) {
+      console.error(`❌ Error getting current battery for ${deviceId}:`, error);
+      return null;
     }
   }
 }

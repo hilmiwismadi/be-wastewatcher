@@ -15,6 +15,24 @@ router.get('/statistics', DeviceController.getStatistics);
 // GET /api/devices/category/:category - Get devices by category
 router.get('/category/:category', DeviceController.getByCategory);
 
+// =====================================================
+// 🔋 BATTERY MANAGEMENT ROUTES
+// ⚠️ IMPORTANT: These must come BEFORE /:id routes to avoid conflicts
+// =====================================================
+
+// GET /api/devices/battery/status - Get battery status for all devices
+router.get('/battery/status', DeviceController.getBatteryStatus);
+
+// POST /api/devices/battery/reset - Reset battery for ALL devices
+router.post('/battery/reset', DeviceController.resetBattery);
+
+// POST /api/devices/:deviceId/battery/reset - Reset battery for specific device
+router.post('/:deviceId/battery/reset', DeviceController.resetBattery);
+
+// =====================================================
+// Dynamic :id routes (must come after specific routes)
+// =====================================================
+
 // GET /api/devices/:id - Get specific device
 router.get('/:id', DeviceController.getById);
 

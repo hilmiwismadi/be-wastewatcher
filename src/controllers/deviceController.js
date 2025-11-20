@@ -1,4 +1,7 @@
 const DeviceModel = require('../models/deviceModel');
+const { PrismaClient } = require('../generated/prisma');
+
+const prisma = new PrismaClient();
 
 class DeviceController {
   // Get all devices
@@ -227,6 +230,219 @@ class DeviceController {
       res.status(500).json({
         success: false,
         error: 'Failed to delete device',
+        message: error.message
+      });
+    }
+  }
+
+  // =====================================================
+  // 🔋 BATTERY RESET ENDPOINTS
+  // =====================================================
+
+  /**
+   * Reset battery to 94% for a single device or all devices
+   * POST /api/devices/battery/reset (reset all devices)
+   * POST /api/devices/:deviceId/battery/reset (reset specific device)
+   */
+  static async resetBattery(req, res) {
+    try {
+      const { deviceId } = req.params;
+      const RESET_BATTERY_PERCENTAGE = 94.0;
+
+      let results = [];
+
+      if (deviceId) {
+        // Reset single device
+        console.log(`🔋 Resetting battery for device: ${deviceId}`);
+
+        // Check if device exists
+        const device = await prisma.device.findUnique({
+          where: { deviceid: deviceId }
+        });
+
+        if (!device) {
+          return res.status(404).json({
+            success: false,
+            error: 'Device not found',
+            message: `Device with ID ${deviceId} does not exist`
+          });
+        }
+
+        // Get current battery
+        const currentHealth = await prisma.deviceHealth.findFirst({
+          where: { deviceid: deviceId },
+          orderBy: { timestamp: 'desc' }
+        });
+
+        // Create new battery record at 94%
+        const healthId = `DH-${deviceId}-RESET-${Date.now()}`;
+        const newHealth = await prisma.deviceHealth.create({
+          data: {
+            healthid: healthId,
+            deviceid: deviceId,
+            battery_percentage: RESET_BATTERY_PERCENTAGE,
+            error_count_24h: currentHealth?.error_count_24h ?? 0,
+            timestamp: new Date()
+          }
+        });
+
+        results.push({
+          deviceId: deviceId,
+          previousBattery: currentHealth?.battery_percentage ?? null,
+          newBattery: RESET_BATTERY_PERCENTAGE,
+          timestamp: newHealth.timestamp
+        });
+
+        console.log(`✅ Battery reset for ${deviceId}: ${currentHealth?.battery_percentage ?? 'N/A'}% → 94%`);
+
+      } else {
+        // Reset all devices
+        console.log('🔋 Resetting battery for ALL devices...');
+
+        // Get all devices
+        const allDevices = await prisma.device.findMany({
+          select: { deviceid: true }
+        });
+
+        console.log(`Found ${allDevices.length} devices to reset`);
+
+        // Reset each device
+        for (const device of allDevices) {
+          const deviceId = device.deviceid;
+
+          // Get current battery
+          const currentHealth = await prisma.deviceHealth.findFirst({
+            where: { deviceid: deviceId },
+            orderBy: { timestamp: 'desc' }
+          });
+
+          // Create new battery record at 94%
+          const healthId = `DH-${deviceId}-RESET-${Date.now()}`;
+          const newHealth = await prisma.deviceHealth.create({
+            data: {
+              healthid: healthId,
+              deviceid: deviceId,
+              battery_percentage: RESET_BATTERY_PERCENTAGE,
+              error_count_24h: currentHealth?.error_count_24h ?? 0,
+              timestamp: new Date()
+            }
+          });
+
+          results.push({
+            deviceId: deviceId,
+            previousBattery: currentHealth?.battery_percentage ?? null,
+            newBattery: RESET_BATTERY_PERCENTAGE,
+            timestamp: newHealth.timestamp
+          });
+
+          console.log(`✅ Battery reset for ${deviceId}: ${currentHealth?.battery_percentage ?? 'N/A'}% → 94%`);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: deviceId
+          ? `Battery reset successfully for device ${deviceId}`
+          : `Battery reset successfully for ${results.length} devices`,
+        data: {
+          resetBatteryPercentage: RESET_BATTERY_PERCENTAGE,
+          devicesReset: results.length,
+          details: results
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error resetting battery:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to reset battery',
+        message: error.message
+      });
+    }
+  }
+
+  /**
+   * Get battery status for all devices
+   * GET /api/devices/battery/status
+   */
+  static async getBatteryStatus(req, res) {
+    try {
+      // Get all devices with their latest battery status
+      const devices = await prisma.device.findMany({
+        select: {
+          deviceid: true,
+          category: true,
+          trashbinid: true,
+          status: true
+        }
+      });
+
+      const batteryStatus = [];
+
+      for (const device of devices) {
+        const latestHealth = await prisma.deviceHealth.findFirst({
+          where: { deviceid: device.deviceid },
+          orderBy: { timestamp: 'desc' },
+          select: {
+            battery_percentage: true,
+            timestamp: true,
+            error_count_24h: true
+          }
+        });
+
+        const battery = latestHealth?.battery_percentage ?? null;
+        let healthStatus = 'unknown';
+
+        if (battery !== null) {
+          if (battery === 0) healthStatus = 'dead';
+          else if (battery < 20) healthStatus = 'critical';
+          else if (battery < 40) healthStatus = 'low';
+          else if (battery < 70) healthStatus = 'moderate';
+          else healthStatus = 'healthy';
+        }
+
+        batteryStatus.push({
+          deviceId: device.deviceid,
+          category: device.category,
+          trashbinId: device.trashbinid,
+          deviceStatus: device.status,
+          battery: {
+            percentage: battery,
+            healthStatus: healthStatus,
+            lastUpdate: latestHealth?.timestamp ?? null,
+            errorCount24h: latestHealth?.error_count_24h ?? 0
+          }
+        });
+      }
+
+      // Sort by battery percentage (lowest first)
+      batteryStatus.sort((a, b) => {
+        const battA = a.battery.percentage ?? 100;
+        const battB = b.battery.percentage ?? 100;
+        return battA - battB;
+      });
+
+      res.json({
+        success: true,
+        data: {
+          totalDevices: batteryStatus.length,
+          devices: batteryStatus,
+          summary: {
+            dead: batteryStatus.filter(d => d.battery.healthStatus === 'dead').length,
+            critical: batteryStatus.filter(d => d.battery.healthStatus === 'critical').length,
+            low: batteryStatus.filter(d => d.battery.healthStatus === 'low').length,
+            moderate: batteryStatus.filter(d => d.battery.healthStatus === 'moderate').length,
+            healthy: batteryStatus.filter(d => d.battery.healthStatus === 'healthy').length,
+            unknown: batteryStatus.filter(d => d.battery.healthStatus === 'unknown').length
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error getting battery status:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get battery status',
         message: error.message
       });
     }
